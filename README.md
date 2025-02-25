@@ -2,6 +2,13 @@
 
 A Python package for creating simple, informative maps showing countries and their neighbors.
 
+<div align="center">
+  <img src="docs/static/germany_map.png" alt="Germany Map" width="32%" />
+  <img src="docs/static/israel_map.png" alt="Israel Map" width="32%" />
+  <img src="docs/static/mexico_map.png" alt="Mexico Map" width="32%" />
+  <p><i>Example maps showing Germany (9 neighbors), Israel (5 neighbors), and Mexico (3 neighbors) with their neighboring countries highlighted.</i></p>
+</div>
+
 ## Features
 
 - Generate country maps with clear visualization
@@ -47,52 +54,60 @@ A Python package for creating simple, informative maps showing countries and the
 Generate a map of Germany with default settings:
 
 ```python
-from src.maps.draw_map import create_map
-
-create_map("Germany", output_file="germany_map.png")
-```
-
-### Customized Map
-
-Generate a map with custom configuration:
-
-```python
-from src.maps.draw_map import create_map, MapConfiguration
-
-# Create custom configuration
-config = MapConfiguration(
-    width=1200,
-    height=800,
-    show_map_labels=True,
-    show_neighbors=True,
-    target_percentage=60
-)
+from draw_map import create_map, MapConfiguration, load_country_data
 
 # Create the map
-create_map("France", output_file="france_map.png", config=config)
+config = MapConfiguration(output_path="germany_map.png", title="Germany and Its Neighbors")
+countries, target_country, neighbor_names = load_country_data("Germany")
+create_map(countries, target_country, neighbor_names, config)
 ```
 
 ### Command Line Usage
 
 ```bash
-python -m src.maps.draw_map Germany --width=1200 --height=800
+# Generate a map for Germany
+python draw_map.py Germany
+
+# Generate a map for Israel with custom output path and resolution
+python draw_map.py Israel -o israel_map.png --dpi 300
+
+# Generate a map for Mexico
+python draw_map.py Mexico
+```
+
+### Find Neighbors Tool
+
+You can also use the neighbors tool to get information about country borders:
+
+```bash
+# List neighboring countries for France
+python find_neighbors.py France
+
+# List available countries (limited to 20)
+python find_neighbors.py --list
+
+# List all available countries
+python find_neighbors.py --list-all
 ```
 
 ## Project Structure
 
 ```
 maps/
-├── src/
-│   └── maps/
-│       ├── __init__.py
-│       ├── draw_map.py         # Main map drawing functionality
-│       └── find_neighbors.py   # Country neighbor lookup
+├── docs/
+│   └── static/                # Example maps and images
+│       ├── germany_map.png
+│       ├── israel_map.png
+│       └── mexico_map.png
 ├── tests/
-│   ├── conftest.py             # Shared test fixtures
+│   ├── conftest.py            # Shared test fixtures
 │   └── maps/
 │       ├── __init__.py
-│       ├── test_draw_map.py    # Tests for drawing functions
+│       ├── test_draw_map.py   # Tests for drawing functions
 │       └── test_find_neighbors.py # Tests for neighbor lookup
+├── __init__.py                # Package initialization
+├── draw_map.py                # Main map drawing functionality
+├── find_neighbors.py          # Country neighbor lookup
 ├── natural_earth_vector.sqlite # Geographic database
 ├── pyproject.toml             # Project configuration
 └── README.md                  # This file
@@ -109,7 +124,7 @@ pytest
 For test coverage report:
 
 ```bash
-pytest --cov=src --cov-report=html
+pytest --cov=. --cov-report=html
 ```
 
 ## Contributing
