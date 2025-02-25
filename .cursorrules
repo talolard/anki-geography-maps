@@ -1,0 +1,8 @@
+* Always use strict typing, never use Any, define custom types when needed, download stubs when needed. Use exaughtive checks and assertNever
+* Write verbose docstrings for modules, classes, functions, methods, etc. Explain intent and constraints 
+* Always use pytest, prefer paramaterized tests to cover test cases. Group tests into test classes. 
+* Run tests by writing pytest, the rest should be definied in pyproject.toml
+* Use verbose logging, follow consistent logging practices. 
+* When writing templates, prefer small templates that include each other. Wrtite tests for each subtemplate.  
+* When using Django ORM, write optimized fields and queryies, leveraging indexes and prefetching. 
+* Prefer class views over function views. Define reusable utilities and contexts that are shared between views as Mixins.  
