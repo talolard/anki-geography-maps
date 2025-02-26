@@ -43,7 +43,9 @@ class MapConfiguration:
     dpi: int = 300
     colors: MapColors = MapColors()
     include_legend: bool = True
-    buffer_factor: float = 0.2  # Buffer around the target country (as a percentage)
+    target_percentage: float = (
+        0.4  # Target country takes up 40% of the image by default
+    )
 
 
 def load_country_data(
@@ -101,7 +103,9 @@ def load_country_data(
         target_country: gpd.GeoDataFrame = countries[countries["name"] == country_name]
 
         if len(target_country) == 0:
-            sample_countries: list[str] = countries["name"].sample(min(10, len(countries))).tolist()
+            sample_countries: list[str] = (
+                countries["name"].sample(min(10, len(countries))).tolist()
+            )
             raise ValueError(
                 f"Country '{country_name}' not found. Sample countries: {', '.join(sample_countries)}",
             )
@@ -153,25 +157,20 @@ def create_map(
     # Use the larger dimension to ensure we capture the whole country
     target_size = max(target_width, target_height)
 
-    # Calculate initial view bounds centered on target country
-    # Use a smaller buffer factor for tighter focus on target
-    target_buffer = target_size * 0.3  # 30% buffer around target
+    # Calculate target percentage to buffer conversion
+    # If we want the target to take up target_percentage (e.g., 0.4 or 40%) of the image,
+    # then the buffer should scale the view inversely
+    # Buffer factor is calculated as: (1/target_percentage - 1) / 2
+    # For example, if target_percentage = 0.4:
+    # buffer_factor = (1/0.4 - 1) / 2 = (2.5 - 1) / 2 = 0.75
+    buffer_factor = (1 / config.target_percentage - 1) / 2
+    target_buffer = target_size * buffer_factor
 
     # Set initial view bounds focused on target
     view_x_min = center_x - (target_size / 2) - target_buffer
     view_y_min = center_y - (target_size / 2) - target_buffer
     view_x_max = center_x + (target_size / 2) + target_buffer
     view_y_max = center_y + (target_size / 2) + target_buffer
-
-    # Now expand bounds only as needed to include neighbors
-    if len(neighbor_countries) > 0:
-        neighbor_bounds = neighbor_countries.total_bounds
-
-        # Expand view bounds to include neighbors, but maintain focus on target
-        view_x_min = min(view_x_min, neighbor_bounds[0])
-        view_y_min = min(view_y_min, neighbor_bounds[1])
-        view_x_max = max(view_x_max, neighbor_bounds[2])
-        view_y_max = max(view_y_max, neighbor_bounds[3])
 
     # Calculate final bounds dimensions
     view_width = view_x_max - view_x_min
@@ -224,7 +223,9 @@ def create_map(
         ha="center",
         va="center",
         color="white",
-        bbox=dict(facecolor=config.colors.target_country, alpha=0.7, boxstyle="round,pad=0.3"),
+        bbox=dict(
+            facecolor=config.colors.target_country, alpha=0.7, boxstyle="round,pad=0.3"
+        ),
     )
 
     # Add labels for neighbor countries
@@ -238,7 +239,11 @@ def create_map(
             ha="center",
             va="center",
             color="white",
-            bbox=dict(facecolor=config.colors.neighbor_countries, alpha=0.7, boxstyle="round,pad=0.2"),
+            bbox=dict(
+                facecolor=config.colors.neighbor_countries,
+                alpha=0.7,
+                boxstyle="round,pad=0.2",
+            ),
         )
 
     # Set map bounds
@@ -308,6 +313,12 @@ def parse_args() -> argparse.Namespace:
         default=300,
         help="Resolution of the output image (default: 300)",
     )
+    parser.add_argument(
+        "--target-percentage",
+        type=float,
+        default=0.4,
+        help="Percentage of the image the target country should occupy (default: 0.4 or 40%%)",
+    )
     return parser.parse_args()
 
 
@@ -319,24 +330,31 @@ def main() -> None:
     db_path: str = args.db_path
 
     # Set output path
-    output_path: str = args.output or f"/tmp/{country_name.lower().replace(' ', '_')}.png"
+    output_path: str = (
+        args.output or f"/tmp/{country_name.lower().replace(' ', '_')}.png"
+    )
 
     try:
         # Load country data
-        countries, target_country, neighbor_names = load_country_data(country_name, db_path)
+        countries, target_country, neighbor_names = load_country_data(
+            country_name, db_path
+        )
 
         # Create map configuration
         config = MapConfiguration(
             output_path=output_path,
             title=f"{country_name} and Its Neighbors",
             dpi=args.dpi,
+            target_percentage=args.target_percentage,
         )
 
         # Generate the map
         create_map(countries, target_country, neighbor_names, config)
 
         # Report success
-        print(f"Successfully created map for {country_name} with {len(neighbor_names)} neighbors")
+        print(
+            f"Successfully created map for {country_name} with {len(neighbor_names)} neighbors"
+        )
         print(f"Map saved to: {output_path}")
 
     except Exception as e:

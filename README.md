@@ -14,7 +14,19 @@ A Python package for creating simple, informative maps showing countries and the
 - Generate country maps with clear visualization
 - Highlight target countries and their neighbors
 - Optimized drawing with automatic bounds calculation
+- Configurable target country focus (percentage of the map)
 - SQLite-based geographic data storage
+
+## Target Percentage Comparison
+
+The tool allows you to control how much of the map area the target country occupies using the `target_percentage` parameter:
+
+<div align="center">
+  <img src="docs/static/brazil_map_20pct.png" alt="Brazil Map (20%)" width="32%" />
+  <img src="docs/static/brazil_map_default.png" alt="Brazil Map (40%)" width="32%" />
+  <img src="docs/static/brazil_map_60pct.png" alt="Brazil Map (60%)" width="32%" />
+  <p><i>Brazil shown at different target percentages: 20% (left), 40% (middle), and 60% (right) of the map area.</i></p>
+</div>
 
 ## Installation
 
@@ -56,9 +68,26 @@ Generate a map of Germany with default settings:
 ```python
 from draw_map import create_map, MapConfiguration, load_country_data
 
-# Create the map
+# Create the map with default target percentage (40%)
 config = MapConfiguration(output_path="germany_map.png", title="Germany and Its Neighbors")
 countries, target_country, neighbor_names = load_country_data("Germany")
+create_map(countries, target_country, neighbor_names, config)
+```
+
+### Custom Target Percentage
+
+Control how much of the map the target country occupies:
+
+```python
+from draw_map import create_map, MapConfiguration, load_country_data
+
+# Create a map with the target country taking up 60% of the image
+config = MapConfiguration(
+    output_path="brazil_map.png", 
+    title="Brazil and Its Neighbors",
+    target_percentage=0.6  # Target country occupies 60% of the map
+)
+countries, target_country, neighbor_names = load_country_data("Brazil")
 create_map(countries, target_country, neighbor_names, config)
 ```
 
@@ -71,8 +100,8 @@ python draw_map.py Germany
 # Generate a map for Israel with custom output path and resolution
 python draw_map.py Israel -o israel_map.png --dpi 300
 
-# Generate a map for Mexico
-python draw_map.py Mexico
+# Generate a map for Brazil with the target country taking up 60% of the image
+python draw_map.py Brazil --target-percentage 0.6
 ```
 
 ### Find Neighbors Tool

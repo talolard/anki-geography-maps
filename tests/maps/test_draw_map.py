@@ -59,7 +59,7 @@ class TestMapConfiguration:
         assert config.dpi == 300
         assert isinstance(config.colors, MapColors)
         assert config.include_legend is True
-        assert config.buffer_factor == 0.2
+        assert config.target_percentage == 0.4
 
     def test_custom_values(self) -> None:
         """Test that MapConfiguration accepts custom values."""
@@ -71,14 +71,14 @@ class TestMapConfiguration:
             dpi=600,
             colors=custom_colors,
             include_legend=False,
-            buffer_factor=0.5,
+            target_percentage=0.6,
         )
 
         assert config.figsize == (16, 9)
         assert config.dpi == 600
         assert config.colors is custom_colors
         assert config.include_legend is False
-        assert config.buffer_factor == 0.5
+        assert config.target_percentage == 0.6
 
     def test_immutability(self) -> None:
         """Test that MapConfiguration is immutable (frozen)."""
