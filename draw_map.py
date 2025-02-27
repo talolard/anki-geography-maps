@@ -80,14 +80,15 @@ def load_country_data(
 
     try:
         # Connect to the SQLite database
+        query: str = "SELECT name, iso_a3, GEOMETRY FROM ne_10m_admin_0_countries"
+
         conn: sqlite3.Connection = sqlite3.connect(db_path)
 
         # Load all countries with geometries
-        query: str = "SELECT name, iso_a3, GEOMETRY FROM ne_10m_admin_0_countries"
         df: DataFrame = pd.read_sql(query, conn)
 
         # Convert the BLOB geometry to shapely geometries
-        df["geometry"] = df["GEOMETRY"].apply(lambda x: wkb.loads(x) if x else None)
+        df["geometry"] = df["GEOMETRY"].apply(lambda x: wkb.loads(x) if x else None) 
         df = df.drop("GEOMETRY", axis=1)
 
         # Convert to GeoDataFrame
