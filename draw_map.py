@@ -5,13 +5,24 @@ import argparse
 import os
 import sqlite3
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
-import geopandas as gpd
+import geopandas as gpd  # type: ignore
 import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.patches import Patch
+from matplotlib.transforms import Bbox
 from pandas import DataFrame
 from shapely import wkb
+from shapely.geometry import (
+    GeometryCollection,
+    MultiPolygon,
+    Point,
+    Polygon,
+    base,
+)
+from shapely.ops import unary_union
+import numpy as np
 
 # Import functionality from find_neighbors.py
 from find_neighbors import (
@@ -19,6 +30,9 @@ from find_neighbors import (
     DBPath,
     get_neighboring_countries,
 )
+
+# Custom types
+ShapelyGeometry = Union[Point, Polygon, MultiPolygon, GeometryCollection, None]
 
 
 @dataclass(frozen=True)
@@ -45,6 +59,12 @@ class MapConfiguration:
     include_legend: bool = True
     target_percentage: float = (
         0.4  # Target country takes up 40% of the image by default
+    )
+    exclude_exclaves: bool = (
+        True  # By default, exclude exclaves from map rendering and bounding box
+    )
+    main_area_threshold: float = (
+        0.8  # Threshold for determining what is a main area vs exclave (80% by default)
     )
 
 
@@ -88,7 +108,9 @@ def load_country_data(
         df: DataFrame = pd.read_sql(query, conn)
 
         # Convert the BLOB geometry to shapely geometries
-        df["geometry"] = df["GEOMETRY"].apply(lambda x: wkb.loads(x) if x else None) 
+        df["geometry"] = df["GEOMETRY"].apply(
+            lambda x: cast(ShapelyGeometry, wkb.loads(x) if x else None)
+        )
         df = df.drop("GEOMETRY", axis=1)
 
         # Convert to GeoDataFrame
@@ -136,64 +158,187 @@ def create_map(
     # Create figure and axis
     fig, ax = plt.subplots(figsize=config.figsize)
 
-    # Identify neighbor countries
-    neighbor_countries = countries[countries["name"].isin(neighbor_names)]
-
     # Get target country geometry and centroid
-    target_geometry = target_country.geometry.iloc[0]
+    original_target_geometry = target_country.geometry.iloc[0]
+    target_country_name = target_country.iloc[0]["name"]
+
+    # If we need to exclude exclaves, filter the target country's geometry
+    target_geometry = original_target_geometry
+    filtered_neighbor_names = neighbor_names.copy()
+
+    if config.exclude_exclaves and isinstance(original_target_geometry, MultiPolygon):
+        # Get list of polygons sorted by area (largest first)
+        polygons = list(original_target_geometry.geoms)
+        areas = [p.area for p in polygons]
+        total_area = sum(areas)
+
+        # Sort polygons by area (largest first)
+        sorted_idx = sorted(range(len(areas)), key=lambda i: areas[i], reverse=True)
+
+        # Get the main polygon and calculate its percentage of total area
+        main_polygon = polygons[sorted_idx[0]]
+        main_polygon_pct = (main_polygon.area / total_area) * 100
+
+        # If the main polygon is large enough, use only it for drawing and bounds
+        if main_polygon_pct >= (config.main_area_threshold * 100):
+            target_geometry = main_polygon
+            print(
+                f"Excluding exclaves: Using only main landmass ({main_polygon_pct:.2f}% of total area)"
+            )
+
+            # Also filter neighbors to only include those that border the main territory
+            # First, get list of neighbors that actually border the main territory
+            main_territory_neighbors = []
+
+            # Create a temporary GeoDataFrame with just the main territory
+            main_territory_gdf = gpd.GeoDataFrame(
+                {"name": [target_country_name], "geometry": [main_polygon]},
+                crs=target_country.crs,
+            )
+
+            # Check each neighbor to see if it borders the main territory
+            for neighbor_name in neighbor_names:
+                neighbor = countries[countries["name"] == neighbor_name]
+                if len(neighbor) == 0:
+                    continue
+
+                neighbor_geom = neighbor.geometry.iloc[0]
+
+                # Check if this neighbor touches the main territory
+                if neighbor_geom.intersects(main_polygon) or neighbor_geom.touches(
+                    main_polygon
+                ):
+                    main_territory_neighbors.append(neighbor_name)
+
+            # If we found neighbors that only border exclaves, filter them out
+            if len(main_territory_neighbors) < len(neighbor_names):
+                excluded_neighbors = set(neighbor_names) - set(main_territory_neighbors)
+                print(
+                    f"Excluding neighbors that only border exclaves: {', '.join(excluded_neighbors)}"
+                )
+                filtered_neighbor_names = main_territory_neighbors
+
+    # Identify neighbor countries (using filtered list if applicable)
+    neighbor_countries = countries[countries["name"].isin(filtered_neighbor_names)]
+
+    # Get centroid of the (possibly filtered) target geometry
     target_centroid = target_geometry.centroid
 
-    # Calculate bounds based on target country
-    target_bounds = target_country.total_bounds
-    x_min, y_min, x_max, y_max = target_bounds
+    # Calculate bounds for visualization
+    # First, try to get bounds from the filtered geometry if applicable
+    try:
+        # Create a temp GeoDataFrame just for bounds calculation
+        if target_geometry is not original_target_geometry:
+            # Use just the filtered polygon for bounds
+            bounds_data = {"name": [target_country_name], "geometry": [target_geometry]}
+            bounds_gdf = gpd.GeoDataFrame(bounds_data, crs=target_country.crs)
+            target_bounds = bounds_gdf.total_bounds
+        else:
+            target_bounds = target_country.total_bounds
 
-    # Calculate center point of target country
-    center_x = (x_min + x_max) / 2
-    center_y = (y_min + y_max) / 2
+        x_min, y_min, x_max, y_max = target_bounds
 
-    # Calculate target country dimensions
-    target_width = x_max - x_min
-    target_height = y_max - y_min
+        # Ensure bounds are valid (not NaN or Inf)
+        if not all(map(lambda x: np.isfinite(x), [x_min, y_min, x_max, y_max])):
+            raise ValueError("Invalid bounds (NaN or Inf values detected)")
 
-    # Use the larger dimension to ensure we capture the whole country
-    target_size = max(target_width, target_height)
+        # Ensure bounds have some width and height
+        if x_max <= x_min or y_max <= y_min:
+            raise ValueError("Invalid bounds (zero or negative width/height)")
 
-    # Calculate target percentage to buffer conversion
-    # If we want the target to take up target_percentage (e.g., 0.4 or 40%) of the image,
-    # then the buffer should scale the view inversely
-    # Buffer factor is calculated as: (1/target_percentage - 1) / 2
-    # For example, if target_percentage = 0.4:
-    # buffer_factor = (1/0.4 - 1) / 2 = (2.5 - 1) / 2 = 0.75
-    buffer_factor = (1 / config.target_percentage - 1) / 2
-    target_buffer = target_size * buffer_factor
+        # Calculate center point of target country
+        center_x = (x_min + x_max) / 2
+        center_y = (y_min + y_max) / 2
 
-    # Set initial view bounds focused on target
-    view_x_min = center_x - (target_size / 2) - target_buffer
-    view_y_min = center_y - (target_size / 2) - target_buffer
-    view_x_max = center_x + (target_size / 2) + target_buffer
-    view_y_max = center_y + (target_size / 2) + target_buffer
+        # Calculate target country dimensions
+        target_width = x_max - x_min
+        target_height = y_max - y_min
 
-    # Calculate final bounds dimensions
-    view_width = view_x_max - view_x_min
-    view_height = view_y_max - view_y_min
+        # Use the larger dimension to ensure we capture the whole country
+        target_size = max(target_width, target_height)
 
-    # Ensure we maintain the aspect ratio from the figure
-    aspect_ratio = config.figsize[0] / config.figsize[1]
+        # Calculate target percentage to buffer conversion
+        buffer_factor = (1 / config.target_percentage - 1) / 2
+        target_buffer = target_size * buffer_factor
 
-    # Adjust bounds to match aspect ratio while keeping centered
-    if (view_width / view_height) > aspect_ratio:
-        # Too wide - need to increase height
-        extra_height = (view_width / aspect_ratio) - view_height
-        view_y_min -= extra_height / 2
-        view_y_max += extra_height / 2
-    else:
-        # Too tall - need to increase width
-        extra_width = (view_height * aspect_ratio) - view_width
-        view_x_min -= extra_width / 2
-        view_x_max += extra_width / 2
+        # Set initial view bounds focused on target
+        view_x_min = center_x - (target_size / 2) - target_buffer
+        view_y_min = center_y - (target_size / 2) - target_buffer
+        view_x_max = center_x + (target_size / 2) + target_buffer
+        view_y_max = center_y + (target_size / 2) + target_buffer
 
-    # Final bounds
-    bounds = [view_x_min, view_y_min, view_x_max, view_y_max]
+        # Calculate final bounds dimensions
+        view_width = view_x_max - view_x_min
+        view_height = view_y_max - view_y_min
+
+        # Ensure we maintain the aspect ratio from the figure
+        aspect_ratio = config.figsize[0] / config.figsize[1]
+
+        # Adjust bounds to match aspect ratio while keeping centered
+        if (view_width / view_height) > aspect_ratio:
+            # Too wide - need to increase height
+            extra_height = (view_width / aspect_ratio) - view_height
+            view_y_min -= extra_height / 2
+            view_y_max += extra_height / 2
+        else:
+            # Too tall - need to increase width
+            extra_width = (view_height * aspect_ratio) - view_width
+            view_x_min -= extra_width / 2
+            view_x_max += extra_width / 2
+
+        # Final bounds
+        bounds = [view_x_min, view_y_min, view_x_max, view_y_max]
+
+    except Exception as e:
+        print(f"Error calculating bounds from filtered geometry: {e}")
+        print("Falling back to using the original geometry for bounds calculation")
+
+        # Fallback to using the original geometry for bounds
+        target_bounds = target_country.total_bounds
+        x_min, y_min, x_max, y_max = target_bounds
+
+        # Calculate center point of target country
+        center_x = (x_min + x_max) / 2
+        center_y = (y_min + y_max) / 2
+
+        # Calculate target country dimensions
+        target_width = x_max - x_min
+        target_height = y_max - y_min
+
+        # Use the larger dimension to ensure we capture the whole country
+        target_size = max(target_width, target_height)
+
+        # Calculate target percentage to buffer conversion
+        buffer_factor = (1 / config.target_percentage - 1) / 2
+        target_buffer = target_size * buffer_factor
+
+        # Set initial view bounds focused on target
+        view_x_min = center_x - (target_size / 2) - target_buffer
+        view_y_min = center_y - (target_size / 2) - target_buffer
+        view_x_max = center_x + (target_size / 2) + target_buffer
+        view_y_max = center_y + (target_size / 2) + target_buffer
+
+        # Calculate final bounds dimensions
+        view_width = view_x_max - view_x_min
+        view_height = view_y_max - view_y_min
+
+        # Ensure we maintain the aspect ratio from the figure
+        aspect_ratio = config.figsize[0] / config.figsize[1]
+
+        # Adjust bounds to match aspect ratio while keeping centered
+        if (view_width / view_height) > aspect_ratio:
+            # Too wide - need to increase height
+            extra_height = (view_width / aspect_ratio) - view_height
+            view_y_min -= extra_height / 2
+            view_y_max += extra_height / 2
+        else:
+            # Too tall - need to increase width
+            extra_width = (view_height * aspect_ratio) - view_width
+            view_x_min -= extra_width / 2
+            view_x_max += extra_width / 2
+
+        # Final bounds
+        bounds = [view_x_min, view_y_min, view_x_max, view_y_max]
 
     # Set ocean background color
     ax.set_facecolor(config.colors.ocean_color)
@@ -206,7 +351,7 @@ def create_map(
         linewidth=0.8,
     )
 
-    # Plot target country on top
+    # Plot target country on top (always use original geometry for display)
     target_country.plot(
         ax=ax,
         color=config.colors.target_country,
@@ -269,7 +414,7 @@ def create_map(
             Patch(
                 facecolor=config.colors.neighbor_countries,
                 edgecolor=config.colors.border_color,
-                label=f"Neighbors ({len(neighbor_names)})",
+                label=f"Neighbors ({len(filtered_neighbor_names)})",
             ),
         ]
         ax.legend(handles=legend_elements, loc="lower left")

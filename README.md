@@ -200,6 +200,80 @@ Or use the territory analyzer directly:
 python territory_analyzer.py "Russia" --db-path="natural_earth_vector.sqlite" --format="human"
 ```
 
+## Exclave Exclusion Feature
+
+The Maps Visualization Tool can automatically exclude exclaves (detached territories) from the map visualization, providing a cleaner and more focused view of a country's main territory. This is particularly useful for countries with distant territories that would otherwise make the map too zoomed out.
+
+### How It Works
+
+When the `exclude_exclaves` option is enabled (which is the default):
+
+1. Only the main landmass of the target country is used for determining map bounds
+2. Neighbors that only border exclaves are excluded from the map visualization
+3. All territories are still shown on the map, but the view is centered and zoomed on the main territory
+
+### Exclave Exclusion Examples
+
+<div align="center">
+  <div>
+    <img src="docs/static/russia_with_exclaves.png" alt="Russia with exclaves" width="48%" />
+    <img src="docs/static/russia_without_exclaves.png" alt="Russia without exclaves" width="48%" />
+    <p><i>Russia shown with exclaves included (left) vs excluded (right). Note how Poland and Lithuania are excluded in the right map as they only border the Kaliningrad exclave.</i></p>
+  </div>
+  
+  <div>
+    <img src="docs/static/usa_with_exclaves.png" alt="USA with exclaves" width="48%" />
+    <img src="docs/static/usa_without_exclaves.png" alt="USA without exclaves" width="48%" />
+    <p><i>United States shown with exclaves included (left) vs excluded (right). Alaska and other territories are still visible but the map focuses on the contiguous states.</i></p>
+  </div>
+</div>
+
+### Using the Exclave Exclusion Feature
+
+By default, exclaves are excluded from map bounds calculations. You can control this behavior:
+
+**In Python:**
+
+```python
+from draw_map import create_map, MapConfiguration, load_country_data
+
+# Default behavior - exclude exclaves
+config = MapConfiguration(
+    output_path="russia_map.png", 
+    title="Russia and Its Neighbors",
+    exclude_exclaves=True  # This is the default
+)
+
+# Include exclaves in bounds calculation
+config_with_exclaves = MapConfiguration(
+    output_path="russia_with_exclaves.png", 
+    title="Russia and All Its Neighbors",
+    exclude_exclaves=False
+)
+
+# Create the maps
+countries, target_country, neighbor_names = load_country_data("Russia")
+create_map(countries, target_country, neighbor_names, config)
+create_map(countries, target_country, neighbor_names, config_with_exclaves)
+```
+
+**Command Line:**
+
+```bash
+# Default - exclude exclaves
+python example_territory_map.py "Russia" --output-dir="output_maps"
+
+# Include exclaves in bounds calculation
+python example_territory_map.py "Russia" --output-dir="output_maps" --include-exclaves
+```
+
+### Benefits of Exclave Exclusion
+
+1. **Better Focus**: Maps focus on the main territory where most of the population and land area is located
+2. **Clearer Visualization**: Without distant exclaves, the map can use more screen space to show details of the main territory
+3. **Relevant Neighbors**: Only countries that border the main territory are highlighted, avoiding confusion with neighbors that only border exclaves
+4. **Consistent Scale**: Maps maintain a consistent scale appropriate for the main landmass
+
 ## Project Structure
 
 ```

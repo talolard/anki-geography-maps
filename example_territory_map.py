@@ -42,6 +42,7 @@ def create_enhanced_map(
     db_path: str = "natural_earth_vector.sqlite",
     output_path: Optional[str] = None,
     threshold: float = 0.8,
+    exclude_exclaves: bool = True,
 ) -> None:
     """
     Create a map enhanced with territory type information.
@@ -54,6 +55,7 @@ def create_enhanced_map(
         db_path: Path to the Natural Earth SQLite database
         output_path: Path for the output map image (default is /tmp/<country>_territory.png)
         threshold: Threshold for determining if a polygon is dominant (default: 0.8)
+        exclude_exclaves: Whether to exclude exclaves from the map rendering and bounds calculation (default: True)
     """
     # Determine output path if not provided
     if output_path is None:
@@ -85,6 +87,8 @@ def create_enhanced_map(
         title=title,
         dpi=300,
         target_percentage=0.6 if territory_info["polygon_count"] > 1 else 0.4,
+        exclude_exclaves=exclude_exclaves,
+        main_area_threshold=threshold,
     )
 
     # Generate the map
@@ -144,6 +148,11 @@ def parse_args() -> argparse.Namespace:
         default=0.8,
         help="Threshold for determining if a polygon is dominant (0.0-1.0)",
     )
+    parser.add_argument(
+        "--include-exclaves",
+        action="store_true",
+        help="Include exclaves in the map rendering and bounds calculation",
+    )
     return parser.parse_args()
 
 
@@ -179,7 +188,13 @@ def main() -> None:
             )
 
             logger.info(f"Processing {country_name}...")
-            create_enhanced_map(country_name, args.db_path, output_path, args.threshold)
+            create_enhanced_map(
+                country_name,
+                args.db_path,
+                output_path,
+                args.threshold,
+                not args.include_exclaves,  # Exclude exclaves by default unless --include-exclaves is specified
+            )
 
         except Exception as e:
             logger.error(f"Error processing {country_name}: {e}")
