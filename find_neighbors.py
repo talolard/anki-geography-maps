@@ -77,20 +77,65 @@ def list_country_names(
             conn.close()
 
 
+def get_countries_df(
+    db_path: DBPath, cache_path: str = "countries_df.parquet"
+) -> DataFrame:
+    """
+    Load countries DataFrame from SQLite database or cached parquet file.
+
+    Args:
+        db_path: Path to the Natural Earth SQLite database
+        cache_path: Path to save/load cached DataFrame
+
+    Returns:
+        DataFrame containing country data with shapely geometries
+    """
+    # Try loading from cache first
+    if os.path.exists(cache_path):
+        print("Loading countries from cache...")
+        df = pd.read_parquet(cache_path)
+        # Convert the cached WKB geometry strings back to shapely objects
+        df["geometry"] = df["geometry"].apply(wkb.loads)
+        return df
+
+    print("Loading countries from database...")
+    # Connect to the SQLite database
+    conn: sqlite3.Connection = sqlite3.connect(db_path)
+
+    # Load countries as a DataFrame using pandas
+    query: str = "SELECT ogc_fid, name, name_long, iso_a3, GEOMETRY FROM ne_10m_admin_0_countries"
+    print(f"Executing query: {query}")
+
+    df: DataFrame = pd.read_sql(query, conn)
+    print(f"Loaded {len(df)} countries")
+
+    # Convert the BLOB geometry to shapely geometries
+    print("Converting BLOB geometries to shapely objects...")
+    df["geometry"] = df["GEOMETRY"].apply(lambda x: wkb.loads(x) if x else None)
+    df = df.drop("GEOMETRY", axis=1)
+
+    # Fix missing ISO codes
+    df["display_iso"] = df["iso_a3"].apply(
+        lambda x: "N/A" if x == "-99" or not x else x
+    )
+
+    # Cache the DataFrame
+    # Convert geometries to WKB for storage
+    df_to_cache = df.copy()
+    df_to_cache["geometry"] = df_to_cache["geometry"].apply(
+        lambda x: x.wkb if x else None
+    )
+    df_to_cache.to_parquet(cache_path)
+
+    conn.close()
+    return df
+
+
 def get_neighboring_countries(
     country_name: CountryName,
     db_path: DBPath = "natural_earth_vector.sqlite",
 ) -> NeighborsResult:
-    """
-    Get all neighboring countries for a given country.
-
-    Args:
-        country_name: The name of the country to find neighbors for
-        db_path: Path to the Natural Earth SQLite database
-
-    Returns:
-        Either a list of neighboring country names and ISO codes, or an error message string
-    """
+    """Get all neighboring countries for a given country."""
     print(f"Looking for neighbors of {country_name}...")
 
     # Verify database exists
@@ -98,29 +143,14 @@ def get_neighboring_countries(
         return f"Database file not found: {db_path}"
 
     try:
-        # Connect to the SQLite database
-        conn: sqlite3.Connection = sqlite3.connect(db_path)
-
-        # Load countries as a DataFrame using pandas
-        query: str = "SELECT ogc_fid, name, name_long, iso_a3, GEOMETRY FROM ne_10m_admin_0_countries"
-        print(f"Executing query: {query}")
-
-        df: DataFrame = pd.read_sql(query, conn)
-        print(f"Loaded {len(df)} countries")
-
-        # Convert the BLOB geometry to shapely geometries
-        print("Converting BLOB geometries to shapely objects...")
-        df["geometry"] = df["GEOMETRY"].apply(lambda x: wkb.loads(x) if x else None)
-        df = df.drop("GEOMETRY", axis=1)
-
-        # Fix missing ISO codes
-        df["display_iso"] = df["iso_a3"].apply(
-            lambda x: "N/A" if x == "-99" or not x else x
-        )
+        # Load countries DataFrame
+        df = get_countries_df(db_path)
 
         # Convert to GeoDataFrame
         countries: gpd.GeoDataFrame = gpd.GeoDataFrame(df, geometry="geometry")
 
+        # Set coordinate reference system (CRS)
+        countries.crs = "EPSG:4326"
         # Set coordinate reference system (CRS)
         countries.crs = "EPSG:4326"
 

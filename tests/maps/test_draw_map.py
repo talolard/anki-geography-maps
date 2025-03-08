@@ -8,7 +8,7 @@ from matplotlib.figure import Figure
 from pandas import DataFrame
 from shapely.geometry import Polygon
 
-from draw_map import (
+from olddraw_map import (
     MapColors,
     MapConfiguration,
     create_map,
@@ -465,7 +465,7 @@ class TestMainFunction:
     ) -> None:
         """Test successful execution of the main function."""
         # Import main function inside the test to avoid running it on import
-        from draw_map import main
+        from olddraw_map import main
 
         # Mock command line arguments
         monkeypatch.setattr("sys.argv", ["draw_map.py", "Germany"])
@@ -507,7 +507,7 @@ class TestMainFunction:
     ) -> None:
         """Test main function with custom output path."""
         # Import main function inside the test
-        from draw_map import main
+        from olddraw_map import main
 
         # Mock command line arguments with custom output
         monkeypatch.setattr(
@@ -537,7 +537,7 @@ class TestMainFunction:
     ) -> None:
         """Test error handling in the main function."""
         # Import main function inside the test
-        from draw_map import main
+        from olddraw_map import main
 
         # Mock command line arguments
         monkeypatch.setattr("sys.argv", ["draw_map.py", "NonExistentCountry"])
