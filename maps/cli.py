@@ -3,11 +3,15 @@
 Command-line interface module for the maps package.
 
 This module provides functionality for parsing command-line arguments
-for the map generation tools.
+and running the command-line interface for the map generation tools.
 """
 
 import argparse
 from typing import Optional
+
+from maps.draw_map import load_country_data
+from maps.models import MapConfiguration
+from maps.renderer import create_map
 
 
 def parse_args(args: Optional[list[str]] = None) -> argparse.Namespace:
@@ -109,3 +113,61 @@ def parse_args(args: Optional[list[str]] = None) -> argparse.Namespace:
 
     # Parse the arguments
     return parser.parse_args(args)
+
+
+def main() -> None:
+    """
+    Main function for the map generation command-line interface.
+
+    This function parses command-line arguments, loads country data,
+    creates a map configuration, and generates the map.
+
+    Returns:
+        None
+    """
+    # Parse command-line arguments
+    parsed_args: argparse.Namespace = parse_args()
+
+    country_name: str = parsed_args.country
+    db_path: str = parsed_args.db_path
+
+    # Set output path
+    output_path: str = (
+        parsed_args.output or f"/tmp/{country_name.lower().replace(' ', '_')}.png"
+    )
+
+    try:
+        # Load country data
+        countries, target_country, neighbor_names = load_country_data(
+            country_name, db_path
+        )
+
+        # Create map configuration
+        config = MapConfiguration(
+            output_path=output_path,
+            title=f"{country_name} and Its Neighbors",
+            dpi=parsed_args.dpi,
+            target_percentage=parsed_args.target_percentage,
+            exclude_exclaves=getattr(parsed_args, "exclude_exclaves", True),
+            show_labels=parsed_args.show_labels,
+            label_size=parsed_args.label_size,
+            label_type=parsed_args.label_type,
+            border_width=parsed_args.border_width,
+        )
+
+        # Generate the map
+        create_map(countries, target_country, neighbor_names, config)
+
+        # Report success
+        print(
+            f"Successfully created map for {country_name} with {len(neighbor_names)} neighbors"
+        )
+        print(f"Map saved to: {output_path}")
+
+    except Exception as e:
+        print(f"Error creating map: {e}")
+        return
+
+
+if __name__ == "__main__":
+    main()

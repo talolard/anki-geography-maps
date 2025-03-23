@@ -9,9 +9,10 @@ from matplotlib.figure import Figure
 from pandas import DataFrame
 from shapely.geometry import Polygon
 
-from maps.cli import parse_args
-from maps.draw_map import create_map, load_country_data, main
+from maps.cli import main, parse_args
+from maps.draw_map import load_country_data
 from maps.models import MapColors, MapConfiguration
+from maps.renderer import create_map
 
 
 class TestMapColors:
@@ -459,8 +460,8 @@ class TestParseArgs:
 class TestMainFunction:
     """Test suite for the main function."""
 
-    @patch("maps.draw_map.load_country_data")
-    @patch("maps.draw_map.create_map")
+    @patch("maps.cli.load_country_data")
+    @patch("maps.cli.create_map")
     def test_main_success(
         self,
         mock_create_map: MagicMock,
@@ -469,7 +470,7 @@ class TestMainFunction:
     ) -> None:
         """Test successful execution of the main function."""
         # Mock command line arguments
-        monkeypatch.setattr("sys.argv", ["maps/draw_map.py", "Germany"])
+        monkeypatch.setattr("sys.argv", ["maps/cli.py", "Germany"])
 
         # Mock the return value of load_country_data
         mock_countries = MagicMock()
@@ -498,8 +499,8 @@ class TestMainFunction:
         assert isinstance(args[3], MapConfiguration)
         assert args[3].title == "Germany and Its Neighbors"
 
-    @patch("maps.draw_map.load_country_data")
-    @patch("maps.draw_map.create_map")
+    @patch("maps.cli.load_country_data")
+    @patch("maps.cli.create_map")
     def test_main_custom_output(
         self,
         mock_create_map: MagicMock,
@@ -509,7 +510,7 @@ class TestMainFunction:
         """Test main function with custom output path."""
         # Mock command line arguments with custom output
         monkeypatch.setattr(
-            "sys.argv", ["maps/draw_map.py", "Germany", "-o", "/tmp/custom.png"]
+            "sys.argv", ["maps/cli.py", "Germany", "-o", "/tmp/custom.png"]
         )
 
         # Mock the return value of load_country_data
@@ -529,13 +530,228 @@ class TestMainFunction:
         args, kwargs = mock_create_map.call_args
         assert args[3].output_path == "/tmp/custom.png"
 
-    @patch("maps.draw_map.load_country_data")
+    @patch("maps.cli.load_country_data")
+    @patch("maps.cli.create_map")
+    def test_main_target_percentage(
+        self,
+        mock_create_map: MagicMock,
+        mock_load_country_data: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Test main function with custom target percentage."""
+        # Mock command line arguments with custom target percentage
+        monkeypatch.setattr(
+            "sys.argv", ["maps/cli.py", "Germany", "--target-percentage", "0.5"]
+        )
+
+        # Mock the return value of load_country_data
+        mock_countries = MagicMock()
+        mock_target_country = MagicMock()
+        mock_neighbor_names = ["France", "Poland"]
+        mock_load_country_data.return_value = (
+            mock_countries,
+            mock_target_country,
+            mock_neighbor_names,
+        )
+
+        # Run main function
+        main()
+
+        # Verify that create_map was called with the right target percentage
+        args, kwargs = mock_create_map.call_args
+        assert args[3].target_percentage == 0.5
+
+    @patch("maps.cli.load_country_data")
+    @patch("maps.cli.create_map")
+    def test_main_exclude_exclaves(
+        self,
+        mock_create_map: MagicMock,
+        mock_load_country_data: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Test main function with exclude exclaves flag."""
+        # Mock command line arguments with exclude exclaves
+        monkeypatch.setattr(
+            "sys.argv", ["maps/cli.py", "Germany", "--exclude-exclaves"]
+        )
+
+        # Mock the return value of load_country_data
+        mock_countries = MagicMock()
+        mock_target_country = MagicMock()
+        mock_neighbor_names = ["France", "Poland"]
+        mock_load_country_data.return_value = (
+            mock_countries,
+            mock_target_country,
+            mock_neighbor_names,
+        )
+
+        # Run main function
+        main()
+
+        # Verify that create_map was called with exclude_exclaves=True
+        args, kwargs = mock_create_map.call_args
+        assert args[3].exclude_exclaves is True
+
+    @patch("maps.cli.load_country_data")
+    @patch("maps.cli.create_map")
+    def test_main_include_exclaves(
+        self,
+        mock_create_map: MagicMock,
+        mock_load_country_data: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Test main function with include exclaves flag."""
+        # Mock command line arguments with include exclaves
+        monkeypatch.setattr(
+            "sys.argv", ["maps/cli.py", "Germany", "--include-exclaves"]
+        )
+
+        # Mock the return value of load_country_data
+        mock_countries = MagicMock()
+        mock_target_country = MagicMock()
+        mock_neighbor_names = ["France", "Poland"]
+        mock_load_country_data.return_value = (
+            mock_countries,
+            mock_target_country,
+            mock_neighbor_names,
+        )
+
+        # Run main function
+        main()
+
+        # Verify that create_map was called with exclude_exclaves=False
+        args, kwargs = mock_create_map.call_args
+        assert args[3].exclude_exclaves is False
+
+    @patch("maps.cli.load_country_data")
+    @patch("maps.cli.create_map")
+    def test_main_no_labels(
+        self,
+        mock_create_map: MagicMock,
+        mock_load_country_data: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Test main function with no labels flag."""
+        # Mock command line arguments with no labels
+        monkeypatch.setattr("sys.argv", ["maps/cli.py", "Germany", "--no-labels"])
+
+        # Mock the return value of load_country_data
+        mock_countries = MagicMock()
+        mock_target_country = MagicMock()
+        mock_neighbor_names = ["France", "Poland"]
+        mock_load_country_data.return_value = (
+            mock_countries,
+            mock_target_country,
+            mock_neighbor_names,
+        )
+
+        # Run main function
+        main()
+
+        # Verify that create_map was called with show_labels=False
+        args, kwargs = mock_create_map.call_args
+        assert args[3].show_labels is False
+
+    @patch("maps.cli.load_country_data")
+    @patch("maps.cli.create_map")
+    def test_main_label_size(
+        self,
+        mock_create_map: MagicMock,
+        mock_load_country_data: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Test main function with custom label size."""
+        # Mock command line arguments with custom label size
+        monkeypatch.setattr(
+            "sys.argv", ["maps/cli.py", "Germany", "--label-size", "12.0"]
+        )
+
+        # Mock the return value of load_country_data
+        mock_countries = MagicMock()
+        mock_target_country = MagicMock()
+        mock_neighbor_names = ["France", "Poland"]
+        mock_load_country_data.return_value = (
+            mock_countries,
+            mock_target_country,
+            mock_neighbor_names,
+        )
+
+        # Run main function
+        main()
+
+        # Verify that create_map was called with the right label size
+        args, kwargs = mock_create_map.call_args
+        assert args[3].label_size == 12.0
+
+    @patch("maps.cli.load_country_data")
+    @patch("maps.cli.create_map")
+    def test_main_label_type(
+        self,
+        mock_create_map: MagicMock,
+        mock_load_country_data: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Test main function with custom label type."""
+        # Mock command line arguments with custom label type
+        monkeypatch.setattr(
+            "sys.argv", ["maps/cli.py", "Germany", "--label-type", "code"]
+        )
+
+        # Mock the return value of load_country_data
+        mock_countries = MagicMock()
+        mock_target_country = MagicMock()
+        mock_neighbor_names = ["France", "Poland"]
+        mock_load_country_data.return_value = (
+            mock_countries,
+            mock_target_country,
+            mock_neighbor_names,
+        )
+
+        # Run main function
+        main()
+
+        # Verify that create_map was called with the right label type
+        args, kwargs = mock_create_map.call_args
+        assert args[3].label_type == "code"
+
+    @patch("maps.cli.load_country_data")
+    @patch("maps.cli.create_map")
+    def test_main_border_width(
+        self,
+        mock_create_map: MagicMock,
+        mock_load_country_data: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Test main function with custom border width."""
+        # Mock command line arguments with custom border width
+        monkeypatch.setattr(
+            "sys.argv", ["maps/cli.py", "Germany", "--border-width", "1.5"]
+        )
+
+        # Mock the return value of load_country_data
+        mock_countries = MagicMock()
+        mock_target_country = MagicMock()
+        mock_neighbor_names = ["France", "Poland"]
+        mock_load_country_data.return_value = (
+            mock_countries,
+            mock_target_country,
+            mock_neighbor_names,
+        )
+
+        # Run main function
+        main()
+
+        # Verify that create_map was called with the right border width
+        args, kwargs = mock_create_map.call_args
+        assert args[3].border_width == 1.5
+
+    @patch("maps.cli.load_country_data")
     def test_main_error_handling(
         self, mock_load_country_data: MagicMock, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test error handling in the main function."""
         # Mock command line arguments
-        monkeypatch.setattr("sys.argv", ["maps/draw_map.py", "NonExistentCountry"])
+        monkeypatch.setattr("sys.argv", ["maps/cli.py", "NonExistentCountry"])
 
         # Mock load_country_data to raise an exception
         mock_load_country_data.side_effect = ValueError("Country not found")
@@ -547,3 +763,65 @@ class TestMainFunction:
         mock_load_country_data.assert_called_once_with(
             "NonExistentCountry", "natural_earth_vector.sqlite"
         )
+
+    @patch("maps.cli.load_country_data")
+    @patch("maps.cli.create_map")
+    def test_main_all_options(
+        self,
+        mock_create_map: MagicMock,
+        mock_load_country_data: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Test main function with all options specified."""
+        # Mock command line arguments with all options
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "maps/cli.py",
+                "Germany",
+                "--db-path",
+                "custom.sqlite",
+                "-o",
+                "/tmp/germany_map.png",
+                "--dpi",
+                "600",
+                "--target-percentage",
+                "0.4",
+                "--include-exclaves",
+                "--label-size",
+                "10.0",
+                "--label-type",
+                "code",
+                "--border-width",
+                "0.8",
+            ],
+        )
+
+        # Mock the return value of load_country_data
+        mock_countries = MagicMock()
+        mock_target_country = MagicMock()
+        mock_neighbor_names = ["France", "Poland", "Austria", "Switzerland"]
+        mock_load_country_data.return_value = (
+            mock_countries,
+            mock_target_country,
+            mock_neighbor_names,
+        )
+
+        # Run main function
+        main()
+
+        # Verify that create_map was called with all the right parameters
+        args, kwargs = mock_create_map.call_args
+        config = args[3]
+        assert config.output_path == "/tmp/germany_map.png"
+        assert config.title == "Germany and Its Neighbors"
+        assert config.dpi == 600
+        assert config.target_percentage == 0.4
+        assert config.exclude_exclaves is False
+        assert config.show_labels is True
+        assert config.label_size == 10.0
+        assert config.label_type == "code"
+        assert config.border_width == 0.8
+
+        # Verify load_country_data was called with the right parameters
+        mock_load_country_data.assert_called_once_with("Germany", "custom.sqlite")
