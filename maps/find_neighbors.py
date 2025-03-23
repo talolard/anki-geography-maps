@@ -5,7 +5,7 @@ import argparse
 import os
 import sqlite3
 from dataclasses import dataclass
-from typing import Union, Optional, List, Tuple, Dict, Any, cast
+from typing import List, Optional, Union, cast
 
 import geopandas as gpd
 import pandas as pd
@@ -200,7 +200,7 @@ def get_neighboring_countries(
         return f"Error: {e!s}"
     finally:
         if "conn" in locals():
-            conn.close()
+            conn.close()  # type: ignore # noqa: F821
 
 
 def parse_args() -> argparse.Namespace:
