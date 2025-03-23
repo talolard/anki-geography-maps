@@ -24,7 +24,7 @@ from maps.find_neighbors import (
 from maps.models import MapConfiguration, ShapelyGeometry
 
 # Use the module-level imported functions for backward compatibility with tests
-from renderer import create_map
+from maps.renderer import create_map
 
 
 # We need to provide our own version of load_country_data for the tests

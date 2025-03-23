@@ -6,14 +6,14 @@ This module provides functionality for rendering maps of countries and their nei
 using matplotlib and geopandas.
 """
 
-from typing import List, Tuple, Optional, Dict, Any, cast, Union
-import matplotlib.pyplot as plt
-import geopandas as gpd
-from shapely.geometry import box, MultiPolygon, Polygon, Point
-import numpy as np
 import math
+from typing import List
 
-from maps.models import MapConfiguration, ShapelyGeometry
+import geopandas as gpd
+import matplotlib.pyplot as plt
+from shapely.geometry import MultiPolygon, Point, box
+
+from maps.models import MapConfiguration
 
 
 def create_map(
