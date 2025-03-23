@@ -16,6 +16,11 @@ import geopandas as gpd
 from shapely.geometry import MultiPolygon
 
 from maps.draw_map import load_country_data
+from maps.language_config import (
+    get_display_info,
+    get_supported_languages,
+    is_language_supported,
+)
 from maps.models import MapConfiguration
 from maps.renderer import create_map
 from maps.territory_analyzer import (
@@ -52,6 +57,13 @@ def parse_args(args: Optional[list[str]] = None) -> argparse.Namespace:
         description="Generate maps and analyze territories of countries."
     )
 
+    # Add option to list supported languages
+    parser.add_argument(
+        "--list-languages",
+        action="store_true",
+        help="List all supported languages for map labels",
+    )
+
     subparsers = parser.add_subparsers(dest="command", help="Sub-command to run")
 
     # Create the 'map' sub-command
@@ -70,10 +82,35 @@ def parse_args(args: Optional[list[str]] = None) -> argparse.Namespace:
     parsed_args = parser.parse_args(args)
 
     # Default command is 'map' if no command specified (should not happen with our logic above)
-    if not parsed_args.command:
+    if not parsed_args.command and not parsed_args.list_languages:
         parsed_args.command = "map"
 
+    # Handle list-languages option
+    if parsed_args.list_languages:
+        _print_supported_languages()
+        sys.exit(0)
+
+    # Validate language parameter if provided
+    if hasattr(parsed_args, "language") and parsed_args.language:
+        if not is_language_supported(parsed_args.language):
+            supported_langs = ", ".join(get_supported_languages())
+            sys.stderr.write(
+                f"Error: Unsupported language code '{parsed_args.language}'. "
+                f"Supported languages are: {supported_langs}\n"
+            )
+            sys.exit(1)
+
     return parsed_args
+
+
+def _print_supported_languages() -> None:
+    """Print a list of supported languages to stdout."""
+    languages = get_display_info()
+    print("\nSupported languages for map labels:")
+    print("-" * 40)
+    for lang in languages:
+        print(f"{lang['code']:<5} - {lang['name']}")
+    print("\nUse --language CODE to specify a language (e.g., --language fr)")
 
 
 def _add_map_arguments(parser: argparse.ArgumentParser) -> None:
@@ -87,7 +124,7 @@ def _add_map_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "country",
         type=str,
-        help="Name of the country to map (e.g., 'United States')",
+        help="Name of the country to map in English (e.g., 'United States')",
     )
 
     # Optional arguments
@@ -96,6 +133,14 @@ def _add_map_arguments(parser: argparse.ArgumentParser) -> None:
         type=str,
         default="natural_earth_vector.sqlite",
         help="Path to the Natural Earth SQLite database (default: natural_earth_vector.sqlite)",
+    )
+
+    parser.add_argument(
+        "--language",
+        "-l",
+        type=str,
+        default="en",
+        help="Language code for country labels (default: en). Use --list-languages to see available options.",
     )
 
     parser.add_argument(
@@ -248,6 +293,7 @@ def generate_map(args: argparse.Namespace) -> None:
     exclude_exclaves: bool = (
         args.exclude_exclaves if hasattr(args, "exclude_exclaves") else False
     )
+    language: str = args.language if hasattr(args, "language") else "en"
 
     # Set output path
     output_path: str = (
@@ -255,9 +301,9 @@ def generate_map(args: argparse.Namespace) -> None:
     )
 
     try:
-        # Load country data
+        # Load country data with language parameter
         countries, target_country, neighbor_names = load_country_data(
-            country_name, db_path
+            country_name, db_path, language=language
         )
 
         # Prepare the map title
@@ -289,6 +335,7 @@ def generate_map(args: argparse.Namespace) -> None:
             label_size=args.label_size,
             label_type=args.label_type,
             border_width=args.border_width,
+            language=language,  # Add language to the config
         )
 
         # If we're excluding exclaves and the country has exclaves or is an island nation,
@@ -315,6 +362,7 @@ def generate_map(args: argparse.Namespace) -> None:
             f"Successfully created map for {country_name} with {len(neighbor_names)} neighbors"
         )
         print(f"Map saved to: {output_path}")
+        print(f"Labels language: {language}")
 
     except Exception as e:
         print(f"Error creating map: {e}")

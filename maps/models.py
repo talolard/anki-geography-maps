@@ -7,7 +7,8 @@ for map generation, styling, and configuration.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, Union, List, Tuple, Dict, Any, Literal
+from typing import Literal, Tuple
+
 from shapely.geometry.base import BaseGeometry
 
 # Type alias for shapely geometry objects
@@ -64,6 +65,7 @@ class MapConfiguration:
         label_size: Font size for country labels
         label_type: Type of label to display ("code" for country codes, "name" for full names)
         border_width: Width of country borders
+        language: Language code for country labels (default: "en" for English)
     """
 
     output_path: str
@@ -77,3 +79,4 @@ class MapConfiguration:
     label_size: float = 8.0
     label_type: LabelType = "name"
     border_width: float = 0.5
+    language: str = "en"

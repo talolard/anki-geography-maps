@@ -165,8 +165,11 @@ def create_map(
                 # Use the ISO code
                 label_text = country["display_iso"]
             else:  # config.label_type == "name"
-                # Use the full country name
-                label_text = country["name"]
+                # Use the localized country name if available, otherwise fall back to English
+                if "display_name" in country and country["display_name"]:
+                    label_text = country["display_name"]
+                else:
+                    label_text = country["name"]
 
                 # For longer names, limit to first word or first few characters
                 if len(label_text) > 15:

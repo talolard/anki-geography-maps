@@ -18,6 +18,7 @@ from maps.find_neighbors import (
 )
 
 # Import from our refactored code
+from maps.language_config import get_language_column
 from maps.models import ShapelyGeometry
 
 # Use the module-level imported functions for backward compatibility with tests
@@ -27,13 +28,15 @@ from maps.models import ShapelyGeometry
 def load_country_data(
     country_name: CountryName,
     db_path: DBPath = "natural_earth_vector.sqlite",
+    language: str = "en",
 ) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame, List[str]]:
     """
     Load country data from Natural Earth database.
 
     Args:
-        country_name: Name of the target country
+        country_name: Name of the target country (in English)
         db_path: Path to the database file
+        language: Language code for country labels (default: "en")
 
     Returns:
         Tuple containing:
@@ -56,7 +59,11 @@ def load_country_data(
 
     try:
         # Connect to the SQLite database
-        query: str = "SELECT name, iso_a3, GEOMETRY FROM ne_10m_admin_0_countries"
+        # Get the column name for the requested language
+        lang_column = get_language_column(language)
+
+        # Build the query to include the language column
+        query: str = f"SELECT name, iso_a3, {lang_column}, GEOMETRY FROM ne_10m_admin_0_countries"
 
         conn: sqlite3.Connection = sqlite3.connect(db_path)
 
@@ -82,6 +89,15 @@ def load_country_data(
         # Fix missing ISO codes
         countries["display_iso"] = countries["iso_a3"].apply(
             lambda x: "N/A" if x == "-99" or not x else x,
+        )
+
+        # Create a display_name column using the requested language
+        # If the language-specific name is empty or None, fall back to English name
+        countries["display_name"] = countries.apply(
+            lambda row: row[lang_column]
+            if row[lang_column] and pd.notna(row[lang_column])
+            else row["name"],
+            axis=1,
         )
 
         # Get the target country

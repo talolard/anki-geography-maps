@@ -43,6 +43,12 @@ python -m maps "Spain" --target-percentage 0.6
 # Show territory information in the title
 python -m maps "Russia" --show-territory-info
 
+# Use multilingual labels (e.g., French labels)
+python -m maps "Germany" --language fr
+
+# List all supported languages
+python -m maps --list-languages
+
 # Analyze a country's territory
 python -m maps analyze "Indonesia"
 
@@ -63,7 +69,7 @@ from maps.models import MapConfiguration
 from maps.renderer import create_map
 
 # Load country data
-countries, target_country, neighbor_names = load_country_data("France")
+countries, target_country, neighbor_names = load_country_data("France", language="fr")
 
 # Create a custom configuration
 config = MapConfiguration(
@@ -71,7 +77,8 @@ config = MapConfiguration(
     title="France and Its Neighbors",
     dpi=400,
     target_percentage=0.5,
-    exclude_exclaves=True
+    exclude_exclaves=True,
+    language="fr"  # Set label language to French
 )
 
 # Generate the map
@@ -91,6 +98,7 @@ maps/
 ├── models.py           # Data models and type definitions
 ├── renderer.py         # Map rendering functions
 ├── find_neighbors.py   # Functions for finding neighboring countries
+├── language_config.py  # Language configuration for multilingual support
 └── territory_analyzer.py # Territory analysis functionality
 
 tests/                  # Test suite
@@ -98,12 +106,14 @@ tests/                  # Test suite
       ├── test_cli.py   # Tests for CLI functionality
       ├── test_draw_map.py # Tests for drawing functions
       ├── test_find_neighbors.py # Tests for neighbor finding
+      ├── test_language_support.py # Tests for multilingual support
       └── test_territory_analyzer.py # Tests for territory analysis
 
 docs/                   # Documentation
   ├── cli_usage.md      # CLI usage documentation
   ├── cli_plan.md       # CLI implementation plan
-  └── territory_plan.md # Territory analyzer integration plan
+  ├── territory_plan.md # Territory analyzer integration plan
+  └── multiling_labels.md # Multilingual label support plan
 ```
 
 ### Module Descriptions
@@ -114,11 +124,13 @@ docs/                   # Documentation
 - **find_neighbors.py**: Provides functionality to find neighboring countries.
 - **territory_analyzer.py**: Analyzes country territories and classifies them by type.
 - **cli.py**: Implements the command-line interface for the package.
+- **language_config.py**: Handles configuration and validation for multilingual label support.
 
 ## Documentation
 
 - [CLI Usage Guide](docs/cli_usage.md) - Detailed guide on using the command-line interface
 - [Territory Analysis](docs/territory_plan.md) - Information about the territory analysis functionality
+- [Multilingual Labels](docs/multiling_labels.md) - Documentation on multilingual label support
 
 ## Testing
 
@@ -134,6 +146,7 @@ For more specific tests:
 python -m pytest tests/maps/test_cli.py
 python -m pytest tests/maps/test_draw_map.py
 python -m pytest tests/maps/test_territory_analyzer.py
+python -m pytest tests/maps/test_language_support.py
 ```
 
 ## Requirements
@@ -147,6 +160,15 @@ python -m pytest tests/maps/test_territory_analyzer.py
 - pytest (for running tests)
 
 ## Features
+
+### Multilingual Label Support
+
+The package supports displaying country labels in different languages. The target country is always specified in English, but the labels on the map can be displayed in any of the 26 supported languages including French, Spanish, German, Russian, Japanese, Chinese, and more.
+
+To use this feature:
+- Specify the `--language` or `-l` parameter with a language code (e.g., `fr` for French)
+- Run `--list-languages` to see all available language options
+- The feature includes fallback to English for any country names that don't have a translation
 
 ### Exclave Handling
 
