@@ -18,13 +18,11 @@ import os
 import sqlite3
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Dict, List, Union, cast
 
 import numpy as np
-import pandas as pd
 import shapely.wkb as wkb
-from shapely.geometry import MultiPolygon, Point, Polygon
-from shapely.ops import transform, unary_union
+from shapely.geometry import MultiPolygon, Polygon
 
 # Type aliases
 CountryName = str
@@ -358,74 +356,3 @@ def add_territory_info_to_map_config(
         config["title"] = f"{base_title} (With Exclaves)"
 
     return config
-
-
-# Main function for command-line usage
-if __name__ == "__main__":
-    import argparse
-    import json
-
-    parser = argparse.ArgumentParser(
-        description="Analyze country territories and classify them",
-    )
-    parser.add_argument(
-        "country",
-        type=str,
-        help="Name of the country to analyze",
-    )
-    parser.add_argument(
-        "--db-path",
-        type=str,
-        default="natural_earth_vector.sqlite",
-        help="Path to the Natural Earth SQLite database",
-    )
-    parser.add_argument(
-        "--threshold",
-        type=float,
-        default=0.8,
-        help="Threshold for determining if a polygon is dominant (0.0-1.0)",
-    )
-    parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Output in JSON format",
-    )
-
-    args = parser.parse_args()
-
-    try:
-        if args.json:
-            # Output in JSON format
-            territory_info = get_country_territory_info(
-                args.country, args.db_path, args.threshold
-            )
-            print(json.dumps(territory_info, indent=2))
-        else:
-            # Run analysis and print human-readable results
-            analyzer = TerritoryAnalyzer(main_area_threshold=args.threshold)
-            result = analyzer.analyze_from_db(args.country, args.db_path)
-
-            print(f"Country: {result.country_name}")
-            print(f"Territory Type: {result.geometry_type.value}")
-            print(f"Polygon Count: {result.polygon_count}")
-            print(f"Total Area: {result.total_area:.2f} square units")
-
-            if result.polygon_count > 1:
-                print(
-                    f"Largest Polygon: {result.main_polygon_percentage:.2f}% of total area"
-                )
-                print(
-                    f"Max Distance Between Polygons: {result.max_distance_between_polygons:.2f} units"
-                )
-
-                print("\nTerritories:")
-                for i, territory in enumerate(result.separate_territories):
-                    print(
-                        f"  {i+1}. Area: {territory['area']:.2f} sq units "
-                        f"({territory['percentage']:.2f}% of total), "
-                        f"Centroid: {territory['centroid']}"
-                    )
-
-    except Exception as e:
-        print(f"Error: {e}")
-        exit(1)

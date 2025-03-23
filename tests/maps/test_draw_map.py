@@ -570,9 +570,9 @@ class TestMainFunction:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test main function with exclude exclaves flag."""
-        # Mock command line arguments with exclude exclaves
+        # Mock command line arguments with exclude exclaves explicitly set to true
         monkeypatch.setattr(
-            "sys.argv", ["maps/cli.py", "Germany", "--exclude-exclaves"]
+            "sys.argv", ["maps/cli.py", "Germany", "--exclude-exclaves", "true"]
         )
 
         # Mock the return value of load_country_data
@@ -600,10 +600,10 @@ class TestMainFunction:
         mock_load_country_data: MagicMock,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Test main function with include exclaves flag."""
-        # Mock command line arguments with include exclaves
+        """Test main function with exclude exclaves set to false (including exclaves)."""
+        # Mock command line arguments with exclude exclaves set to false
         monkeypatch.setattr(
-            "sys.argv", ["maps/cli.py", "Germany", "--include-exclaves"]
+            "sys.argv", ["maps/cli.py", "Germany", "--exclude-exclaves", "false"]
         )
 
         # Mock the return value of load_country_data
@@ -787,7 +787,8 @@ class TestMainFunction:
                 "600",
                 "--target-percentage",
                 "0.4",
-                "--include-exclaves",
+                "--exclude-exclaves",
+                "false",
                 "--label-size",
                 "10.0",
                 "--label-type",
