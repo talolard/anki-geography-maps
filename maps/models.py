@@ -7,11 +7,14 @@ for map generation, styling, and configuration.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, Union, List, Tuple, Dict, Any
+from typing import Optional, Union, List, Tuple, Dict, Any, Literal
 from shapely.geometry.base import BaseGeometry
 
 # Type alias for shapely geometry objects
 ShapelyGeometry = BaseGeometry
+
+# Type for label display options
+LabelType = Literal["code", "name"]
 
 
 @dataclass(frozen=True)
@@ -59,6 +62,7 @@ class MapConfiguration:
         colors: Color scheme for the map
         show_labels: Whether to show country labels on the map
         label_size: Font size for country labels
+        label_type: Type of label to display ("code" for country codes, "name" for full names)
         border_width: Width of country borders
     """
 
@@ -70,5 +74,6 @@ class MapConfiguration:
     exclude_exclaves: bool = True
     colors: MapColors = field(default_factory=MapColors)
     show_labels: bool = True
-    label_size: int = 8
+    label_size: float = 8.0
+    label_type: LabelType = "name"
     border_width: float = 0.5

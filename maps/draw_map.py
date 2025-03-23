@@ -4,12 +4,14 @@
 import argparse
 import os
 import sqlite3
-from typing import List, Tuple, Any, Optional
+from typing import Any, List, Optional, Tuple
 
 import geopandas as gpd  # type: ignore
 import pandas as pd
 from pandas import DataFrame
 from shapely import wkb
+
+from maps.cli import parse_args
 
 # Import functionality from find_neighbors.py
 from maps.find_neighbors import (
@@ -23,7 +25,6 @@ from maps.models import MapConfiguration, ShapelyGeometry
 
 # Use the module-level imported functions for backward compatibility with tests
 from renderer import create_map
-from maps.cli import parse_args
 
 
 # We need to provide our own version of load_country_data for the tests

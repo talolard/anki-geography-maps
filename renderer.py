@@ -6,14 +6,14 @@ This module provides functionality for rendering maps of countries and their nei
 using matplotlib and geopandas.
 """
 
-from typing import List, Tuple, Optional, Dict, Any, cast
+from typing import List, Tuple, Optional, Dict, Any, cast, Union
 import matplotlib.pyplot as plt
 import geopandas as gpd
 from shapely.geometry import box, MultiPolygon, Polygon, Point
 import numpy as np
 import math
 
-from models import MapConfiguration, ShapelyGeometry
+from maps.models import MapConfiguration, ShapelyGeometry
 
 
 def create_map(
@@ -160,12 +160,39 @@ def create_map(
                 # Skip labels that would be outside the view
                 continue
 
+            # Determine the label text based on the label_type configuration
+            if config.label_type == "code":
+                # Use the ISO code
+                label_text = country["display_iso"]
+            else:  # config.label_type == "name"
+                # Use the full country name
+                label_text = country["name"]
+
+                # For longer names, limit to first word or first few characters
+                if len(label_text) > 15:
+                    # Try to get the first word
+                    first_word = label_text.split()[0]
+                    if len(first_word) > 5:
+                        # If first word is still long, use first 5 chars + ellipsis
+                        label_text = f"{first_word[:5]}..."
+                    else:
+                        label_text = first_word
+
+            # Adjust font size based on country type and label length
+            font_size: float = float(config.label_size)
+            if country["country_type"] == "target":
+                # Make target country label slightly larger
+                font_size = float(config.label_size) * 1.2
+            elif len(label_text) > 10:
+                # Make long labels slightly smaller
+                font_size = float(config.label_size) * 0.8
+
             # Add the label
             ax.text(
                 centroid.x,
                 centroid.y,
-                country["display_iso"],
-                fontsize=config.label_size,
+                label_text,
+                fontsize=font_size,
                 ha="center",
                 va="center",
                 color=config.colors.text_color,

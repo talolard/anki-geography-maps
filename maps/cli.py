@@ -87,9 +87,17 @@ def parse_args(args: Optional[list[str]] = None) -> argparse.Namespace:
 
     parser.add_argument(
         "--label-size",
-        type=int,
-        default=8,
-        help="Font size for country labels (default: 8)",
+        type=float,
+        default=8.0,
+        help="Font size for country labels (default: 8.0)",
+    )
+
+    parser.add_argument(
+        "--label-type",
+        type=str,
+        choices=["code", "name"],
+        default="name",
+        help="Type of label to display: 'code' for country codes, 'name' for full names (default: name)",
     )
 
     parser.add_argument(

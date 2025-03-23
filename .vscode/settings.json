@@ -1,1 +1,42 @@
-{}
+{
+    "python.missingPackage.severity": "Error",
+    "mypy-type-checker.reportingScope": "workspace",
+    "mypy-type-checker.preferDaemon": true,
+    "mypy-type-checker.severity": {
+        "error": "Error",
+        "note": "Information"
+    },
+    // "python.envFile": "${workspaceFolder}/.env",
+    "python.languageServer": "Pylance",
+    "python.analysis.diagnosticMode": "workspace",
+    // and you already have mypy installed in your `triton` environment, do:
+    "mypy-type-checker.importStrategy": "fromEnvironment",
+    // Or you can explicitly point to your environment’s Mypy:
+    // "mypy-type-checker.path": [
+    //   "/absolute/path/to/triton/env/bin/mypy"
+    // ],
+    // Add arguments to Mypy. For example, use the config file + target folder:
+    "mypy-type-checker.args": [
+        "--config-file=./pyproject.toml",
+    ],
+    // Make sure Mypy sees the workspace root as the CWD
+    "editor.formatOnSave": true,
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": "explicit",
+            "source.organizeImports.ruff": "explicit"
+        }
+    },
+    "ruff.enable": true,
+    "ruff.organizeImports": true,
+    "ruff.fixAll": true,
+    // Disable pyright type checking
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "mypy-type-checker.cwd": "${workspaceFolder}",
+}

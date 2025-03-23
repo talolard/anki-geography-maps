@@ -13,7 +13,7 @@ import os
 import sys
 from typing import List, Optional
 
-from territory_analyzer import CountryGeometryType, TerritoryAnalyzer
+from maps.territory_analyzer import CountryGeometryType, TerritoryAnalyzer
 
 # Configure logging
 logging.basicConfig(

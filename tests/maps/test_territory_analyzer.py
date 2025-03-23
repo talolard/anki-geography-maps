@@ -1,18 +1,14 @@
 """Tests for the territory_analyzer module."""
 
-import os
-import unittest
 from unittest.mock import MagicMock, patch
 
-import geopandas as gpd
-import numpy as np
 import pytest
-from shapely.geometry import MultiPolygon, Point, Polygon
+from shapely.geometry import MultiPolygon, Polygon
 
-from territory_analyzer import (
+from maps.territory_analyzer import (
     CountryGeometryType,
-    TerritoryAnalyzer,
     TerritoryAnalysisResult,
+    TerritoryAnalyzer,
     load_country_geometry,
 )
 
@@ -242,7 +238,7 @@ class TestTerritoryAnalyzer:
     def test_analyze_with_db(self) -> None:
         """Test analyze_from_db method."""
         # Mock load_country_geometry
-        with patch("territory_analyzer.load_country_geometry") as mock_load:
+        with patch("maps.territory_analyzer.load_country_geometry") as mock_load:
             # Create a simple polygon for Israel
             israel_polygon = Polygon([(34, 29), (34, 33), (36, 33), (36, 29)])
             mock_load.return_value = israel_polygon

@@ -1,8 +1,8 @@
 """Tests for the find_neighbors module."""
 
 import sqlite3
-from typing import Any, Dict, List, Optional, Tuple, Union
-from unittest.mock import MagicMock, patch, call
+from typing import Dict, List, Optional, Tuple
+from unittest.mock import MagicMock, call, patch
 
 import geopandas as gpd
 import pandas as pd
@@ -10,13 +10,13 @@ import pytest
 from pandas import DataFrame
 from shapely.geometry import Polygon
 
-from find_neighbors import (
+from maps.find_neighbors import (
     CountryRecord,
     format_iso_code,
     get_neighboring_countries,
     list_country_names,
-    parse_args,
     main,
+    parse_args,
 )
 
 # Import TEST_DB_PATH from conftest instead
@@ -345,8 +345,13 @@ class TestGetNeighboringCountries:
     @patch("os.path.exists")
     @patch("sqlite3.connect")
     @patch("pandas.read_sql")
+    @patch("maps.find_neighbors.get_countries_df")
     def test_country_not_found(
-        self, mock_read_sql: MagicMock, mock_connect: MagicMock, mock_exists: MagicMock
+        self,
+        mock_get_countries_df: MagicMock,
+        mock_read_sql: MagicMock,
+        mock_connect: MagicMock,
+        mock_exists: MagicMock,
     ) -> None:
         """Test behavior when the specified country is not found."""
         # Mock file existence and connection
@@ -360,41 +365,34 @@ class TestGetNeighboringCountries:
             "name": ["France", "Spain", "Italy"],
             "name_long": ["French Republic", "Kingdom of Spain", "Italian Republic"],
             "iso_a3": ["FRA", "ESP", "ITA"],
-            "GEOMETRY": [b"test1", b"test2", b"test3"],
+            "display_iso": ["FRA", "ESP", "ITA"],
+            "geometry": [
+                Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
+                Polygon([(1, 1), (1, 2), (2, 2), (2, 1)]),
+                Polygon([(2, 2), (2, 3), (3, 3), (3, 2)]),
+            ],
         }
-        mock_df = DataFrame(mock_data)
-        mock_read_sql.return_value = mock_df
+        mock_df = pd.DataFrame(mock_data)
 
-        # Mock GeoDataFrame creation
-        with patch("geopandas.GeoDataFrame", return_value=mock_df):
-            # Mock geometry loading
-            with patch(
-                "shapely.wkb.loads",
-                return_value=Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
-            ):
-                # Add sample method to DataFrame
-                mock_df.sample = MagicMock(
-                    return_value=DataFrame({"name": ["France", "Spain"]})
-                )
+        # Mock GeoDataFrame - already contains geometries
+        mock_gdf = gpd.GeoDataFrame(mock_df, geometry="geometry")
+        mock_get_countries_df.return_value = mock_gdf
 
-                # Call the function
-                result = get_neighboring_countries("Germany", TEST_DB_PATH)
+        # Call the function
+        result = get_neighboring_countries("Germany", TEST_DB_PATH)
 
-                # Verify the result is an error message
-                assert isinstance(result, str)
-                assert "Country 'Germany' not found" in result
+        # Verify the result is an error message
+        assert isinstance(result, str)
+        assert "Country 'Germany' not found" in result
 
     @patch("os.path.exists")
-    @patch("sqlite3.connect")
-    @patch("pandas.read_sql")
+    @patch("maps.find_neighbors.get_countries_df")
     def test_successful_neighbors_finding_with_touches(
-        self, mock_read_sql: MagicMock, mock_connect: MagicMock, mock_exists: MagicMock
+        self, mock_get_countries_df: MagicMock, mock_exists: MagicMock
     ) -> None:
         """Test successful finding of neighbors using the 'touches' method."""
-        # Mock file existence and connection
+        # Mock file existence
         mock_exists.return_value = True
-        mock_conn = MagicMock()
-        mock_connect.return_value = mock_conn
 
         # Create mock polygons for countries
         germany_poly = Polygon([(10, 50), (10, 55), (15, 55), (15, 50)])
@@ -423,52 +421,35 @@ class TestGetNeighboringCountries:
             }
         )
 
-        # Mock the GeoDataFrame methods for filtering
-        with patch("geopandas.GeoDataFrame", return_value=mock_gdf) as mock_gdf_class:
-            # We need a more complete approach for mocking all the behaviors
+        # Mock the get_countries_df function to return our mock GeoDataFrame
+        mock_get_countries_df.return_value = mock_gdf
 
-            # This test should verify that neighbors can be found using the 'touches' method
-            # Let's use a different approach, by patching at a higher level
+        # Define which countries should be neighbors based on our mock polygons
+        # France and Poland touch Germany in our mock setup
+        expected_neighbors = [("France", "FRA"), ("Poland", "POL")]
 
-            # Create a mock function that returns the expected result
-            def mock_get_neighbors(
-                *args: Any, **kwargs: Any
-            ) -> Union[List[Tuple[str, str]], str]:
-                country_name = args[0]
-                if country_name == "Germany":
-                    return [("France", "FRA"), ("Poland", "POL")]
-                return f"Country '{country_name}' not found"
+        # Call the function
+        result = get_neighboring_countries("Germany", TEST_DB_PATH)
 
-            # Patch the function directly at a higher level
-            with patch(
-                "find_neighbors.get_neighboring_countries",
-                side_effect=mock_get_neighbors,
-            ):
-                # Call the function
-                result = get_neighboring_countries("Germany", TEST_DB_PATH)
+        # Check that we get a list back, not an error string
+        assert isinstance(result, list), f"Expected list, got: {result}"
 
-                # Check that we get a list back, not an error string
-                assert isinstance(result, list), f"Expected list, got: {result}"
-
-                # Convert the expected result to match the actual format
-                expected_neighbors = [("France", "FRA"), ("Poland", "POL")]
-
-                # Check the contents without depending on order
-                assert len(result) == len(expected_neighbors)
-                for neighbor in expected_neighbors:
-                    assert neighbor in result, f"Expected {neighbor} in {result}"
+        # Check the contents without depending on order
+        assert len(result) == len(expected_neighbors)
+        for neighbor in expected_neighbors:
+            assert neighbor in result, f"Expected {neighbor} in {result}"
 
     @patch("os.path.exists")
-    @patch("sqlite3.connect")
+    @patch("maps.find_neighbors.get_countries_df")
     def test_error_handling(
-        self, mock_connect: MagicMock, mock_exists: MagicMock
+        self, mock_get_countries_df: MagicMock, mock_exists: MagicMock
     ) -> None:
         """Test handling of errors during neighbor finding."""
         # Mock file existence
         mock_exists.return_value = True
 
-        # Mock connection to raise exception
-        mock_connect.side_effect = sqlite3.Error("Test database error")
+        # Mock get_countries_df to raise an exception
+        mock_get_countries_df.side_effect = Exception("Test database error")
 
         # Call the function
         result = get_neighboring_countries("Germany", TEST_DB_PATH)
@@ -506,7 +487,7 @@ class TestParseArgs:
     def test_default_args(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test parsing with default arguments."""
         # Mock command line arguments
-        monkeypatch.setattr("sys.argv", ["find_neighbors.py"])
+        monkeypatch.setattr("sys.argv", ["maps.find_neighbors.py"])
 
         # Parse arguments
         args = parse_args()
@@ -519,7 +500,7 @@ class TestParseArgs:
     def test_custom_country(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test parsing with a custom country argument."""
         # Mock command line arguments
-        monkeypatch.setattr("sys.argv", ["find_neighbors.py", "France"])
+        monkeypatch.setattr("sys.argv", ["maps.find_neighbors.py", "France"])
 
         # Parse arguments
         args = parse_args()
@@ -532,7 +513,7 @@ class TestParseArgs:
     def test_list_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test parsing with the --list flag."""
         # Mock command line arguments
-        monkeypatch.setattr("sys.argv", ["find_neighbors.py", "--list"])
+        monkeypatch.setattr("sys.argv", ["maps.find_neighbors.py", "--list"])
 
         # Parse arguments
         args = parse_args()
@@ -545,7 +526,7 @@ class TestParseArgs:
     def test_list_all_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test parsing with the --list-all flag."""
         # Mock command line arguments
-        monkeypatch.setattr("sys.argv", ["find_neighbors.py", "--list-all"])
+        monkeypatch.setattr("sys.argv", ["maps.find_neighbors.py", "--list-all"])
 
         # Parse arguments
         args = parse_args()
@@ -560,7 +541,7 @@ class TestMainFunction:
     """Test suite for the main function."""
 
     @patch("sys.exit")
-    @patch("find_neighbors.list_country_names")
+    @patch("maps.find_neighbors.list_country_names")
     def test_main_with_list_flag(
         self,
         mock_list_country_names: MagicMock,
@@ -569,10 +550,9 @@ class TestMainFunction:
     ) -> None:
         """Test main function with the --list flag."""
         # Import main function inside the test to avoid running it on import
-        from find_neighbors import main
 
         # Mock command line arguments
-        monkeypatch.setattr("sys.argv", ["find_neighbors.py", "--list"])
+        monkeypatch.setattr("sys.argv", ["maps.find_neighbors.py", "--list"])
 
         # Mock list_country_names to return sample data
         mock_list_country_names.return_value = [
@@ -581,7 +561,7 @@ class TestMainFunction:
         ]
 
         # Need to patch the actual exit function since we need to verify it was called
-        with patch("find_neighbors.exit") as patched_exit:
+        with patch("maps.find_neighbors.exit") as patched_exit:
             # Run main function
             main()
 
@@ -589,16 +569,15 @@ class TestMainFunction:
             mock_list_country_names.assert_called_once_with(limit=20)
             patched_exit.assert_called_once_with(0)
 
-    @patch("find_neighbors.get_neighboring_countries")
+    @patch("maps.find_neighbors.get_neighboring_countries")
     def test_main_with_country(
         self, mock_get_neighbors: MagicMock, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test main function with a country argument."""
         # Import main function inside the test to avoid running it on import
-        from find_neighbors import main
 
         # Mock command line arguments
-        monkeypatch.setattr("sys.argv", ["find_neighbors.py", "France"])
+        monkeypatch.setattr("sys.argv", ["maps.find_neighbors.py", "France"])
 
         # Mock get_neighboring_countries to return sample data
         mock_get_neighbors.return_value = [
@@ -613,8 +592,8 @@ class TestMainFunction:
         # Verify get_neighboring_countries was called with the right parameters
         mock_get_neighbors.assert_called_once_with("France")
 
-    @patch("find_neighbors.get_neighboring_countries")
-    @patch("find_neighbors.list_country_names")
+    @patch("maps.find_neighbors.get_neighboring_countries")
+    @patch("maps.find_neighbors.list_country_names")
     def test_main_with_error(
         self,
         mock_list_country_names: MagicMock,
@@ -623,10 +602,11 @@ class TestMainFunction:
     ) -> None:
         """Test main function when an error occurs finding neighbors."""
         # Import main function inside the test to avoid running it on import
-        from find_neighbors import main
 
         # Mock command line arguments
-        monkeypatch.setattr("sys.argv", ["find_neighbors.py", "NonExistentCountry"])
+        monkeypatch.setattr(
+            "sys.argv", ["maps.find_neighbors.py", "NonExistentCountry"]
+        )
 
         # Mock get_neighboring_countries to return an error
         mock_get_neighbors.return_value = "Country 'NonExistentCountry' not found"

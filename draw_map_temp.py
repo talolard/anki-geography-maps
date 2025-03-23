@@ -4,26 +4,27 @@
 import argparse
 import os
 import sqlite3
-from typing import List, Tuple, Any, Optional
+from typing import Any, List, Optional, Tuple
 
 import geopandas as gpd  # type: ignore
 import pandas as pd
 from pandas import DataFrame
 from shapely import wkb
 
+from maps.cli import parse_args
+
 # Import functionality from find_neighbors.py
-from oldfind_neighbors import (
+from maps.find_neighbors import (
     CountryName,
     DBPath,
     get_neighboring_countries,
 )
 
 # Import from our refactored code
-from maps.models import MapConfiguration, ShapelyGeometry, MapColors
+from maps.models import MapConfiguration, ShapelyGeometry
 
 # Use the module-level imported functions for backward compatibility with tests
-from maps.renderer import create_map
-from maps.cli import parse_args
+from renderer import create_map
 
 
 # We need to provide our own version of load_country_data for the tests
@@ -75,7 +76,7 @@ def load_country_data(
             except Exception:
                 return None
 
-        df["geometry"] = df["GEOMETRY"].apply(convert_geometry)
+        df["geometry"] = df["GEOMETRY"].apply(convert_geometry)  # type: ignore
         df = df.drop("GEOMETRY", axis=1)
 
         # Convert to GeoDataFrame
@@ -132,6 +133,9 @@ def main() -> None:
             dpi=parsed_args.dpi,
             target_percentage=parsed_args.target_percentage,
             exclude_exclaves=getattr(parsed_args, "exclude_exclaves", True),
+            show_labels=parsed_args.show_labels,
+            label_size=parsed_args.label_size,
+            label_type=parsed_args.label_type,
         )
 
         # Generate the map
